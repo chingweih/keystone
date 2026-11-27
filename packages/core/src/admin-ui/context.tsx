@@ -7,6 +7,7 @@ import { injectGlobal, tokenSchema } from '@keystar/ui/style'
 import { Toaster } from '@keystar/ui/toast'
 
 import { snapValueToClosest } from './pages/ListPage/PaginationControls.tsx'
+import { DesktopSidebarContext } from './components/DesktopSidebarContext.ts'
 import type {
   AdminConfig,
   BaseListTypeInfo,
@@ -249,6 +250,7 @@ function InternalKeystoneProvider({
 
 export function KeystoneProvider({ router, ...props }: KeystoneProviderProps) {
   const [navigationBlockers] = useState(createNavigationBlockers)
+  const desktopSidebar = useState(false)
   router.useNavigationBlocker({
     hasUnsavedChanges: navigationBlockers.hasUnsavedChanges,
     shouldBlockNavigation: navigationBlockers.shouldBlockNavigation,
@@ -269,7 +271,9 @@ export function KeystoneProvider({ router, ...props }: KeystoneProviderProps) {
   return (
     <KeystarProvider router={router}>
       <ApolloProvider client={apolloClient}>
-        <InternalKeystoneProvider {...props} navigationBlockers={navigationBlockers} />
+        <DesktopSidebarContext.Provider value={desktopSidebar}>
+          <InternalKeystoneProvider {...props} navigationBlockers={navigationBlockers} />
+        </DesktopSidebarContext.Provider>
       </ApolloProvider>
     </KeystarProvider>
   )

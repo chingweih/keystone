@@ -1,12 +1,15 @@
-import { type HTMLAttributes, type ReactNode, useState } from 'react'
+import { type HTMLAttributes, type ReactNode, useContext, useId, useState } from 'react'
 
 import { ActionButton } from '@keystar/ui/button'
 import { Icon } from '@keystar/ui/icon'
 import { menuIcon } from '@keystar/ui/icon/icons/menuIcon'
+import { panelLeftCloseIcon } from '@keystar/ui/icon/icons/panelLeftCloseIcon'
+import { panelLeftOpenIcon } from '@keystar/ui/icon/icons/panelLeftOpenIcon'
 import { xIcon } from '@keystar/ui/icon/icons/xIcon'
 import { breakpointQueries, css, tokenSchema } from '@keystar/ui/style'
 import { HStack, VStack } from '@keystar/ui/layout'
 
+import { DesktopSidebarContext } from './DesktopSidebarContext.ts'
 import { Logo } from './Logo.tsx'
 import { Navigation } from './Navigation.tsx'
 
@@ -20,7 +23,11 @@ export function PageWrapper(props: HTMLAttributes<HTMLElement>) {
         isolation: 'isolate',
         [breakpointQueries.above.mobile]: {
           gridTemplateColumns: `${tokenSchema.size.scale[3600]} minmax(0, 1fr)`,
-          gridTemplateRows: `${tokenSchema.size.element.xlarge} auto`,
+          gridTemplateRows: `${tokenSchema.size.element.xlarge} minmax(0, 1fr)`,
+          '&[data-sidebar-collapsed] > main': {
+            gridColumn: '1 / -1',
+            gridRow: '2 / 3',
+          },
         },
       })}
       {...props}
@@ -29,17 +36,19 @@ export function PageWrapper(props: HTMLAttributes<HTMLElement>) {
 }
 
 const Sidebar = ({
-  isSidebarOpen,
+  isMobileMenuOpen,
+  isDesktopSidebarCollapsed,
   ...props
 }: HTMLAttributes<HTMLElement> & {
-  isSidebarOpen: boolean
+  isMobileMenuOpen: boolean
+  isDesktopSidebarCollapsed: boolean
 }) => {
   return (
     <div
       className={css({
         gridColumn: '1/2',
         gridRow: '2/4',
-        display: isSidebarOpen ? 'block' : 'none',
+        display: isMobileMenuOpen ? 'block' : 'none',
         height: '100vh',
         overflow: 'hidden auto',
         WebkitOverflowScrolling: 'touch',
@@ -47,7 +56,7 @@ const Sidebar = ({
         [breakpointQueries.above.mobile]: {
           gridColumn: '1/2',
           gridRow: '2/3',
-          display: 'block',
+          display: isDesktopSidebarCollapsed ? 'none' : 'block',
           height: '100%',
         },
       })}
@@ -75,10 +84,10 @@ function Content(props: HTMLAttributes<HTMLElement>) {
         overflow: 'hidden auto',
         WebkitOverflowScrolling: 'touch',
 
-        // prevent focused form fields being hidden behind the sticky toolbar
-        // this is particularly important for textareas that may expand
         [breakpointQueries.above.mobile]: {
-          // must be kept in-sync with the toolbar height
+          gridColumn: '2 / 3',
+          gridRow: '2 / 4',
+          // Match the sticky toolbar height so it doesn't cover focused fields.
           scrollPaddingBlockEnd: tokenSchema.size.element.xlarge,
         },
       })}
@@ -94,9 +103,14 @@ type PageContainerProps = {
 }
 
 export function PageContainer({ children, header, title }: PageContainerProps) {
-  const [isSidebarOpen, setSidebarOpen] = useState(false)
+  const sidebarId = useId()
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isDesktopSidebarCollapsed, setDesktopSidebarCollapsed] = useContext(
+    DesktopSidebarContext
+  ) ?? [false, null]
+
   return (
-    <PageWrapper>
+    <PageWrapper data-sidebar-collapsed={isDesktopSidebarCollapsed || undefined}>
       <title>{title ? `Keystone - ${title}` : 'Keystone'}</title>
       <HStack
         alignItems="center"
@@ -106,15 +120,14 @@ export function PageContainer({ children, header, title }: PageContainerProps) {
       >
         <Logo />
         <ActionButton
-          aria-label="open main menu"
-          aria-pressed={isSidebarOpen}
-          onPress={() => {
-            setSidebarOpen(bool => !bool)
-          }}
+          aria-label={isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}
+          aria-controls={sidebarId}
+          aria-expanded={isMobileMenuOpen}
+          onPress={() => setMobileMenuOpen(open => !open)}
           prominence="low"
           isHidden={{ above: 'mobile' }}
         >
-          <Icon src={isSidebarOpen ? xIcon : menuIcon} />
+          <Icon src={isMobileMenuOpen ? xIcon : menuIcon} />
         </ActionButton>
       </HStack>
       <HStack
@@ -125,13 +138,44 @@ export function PageContainer({ children, header, title }: PageContainerProps) {
         justifyContent="space-between"
         minWidth={0}
         paddingX="xlarge"
-        UNSAFE_style={{ visibility: isSidebarOpen ? 'hidden' : 'visible' }}
+        UNSAFE_className={css({
+          [breakpointQueries.below.tablet]: {
+            visibility: isMobileMenuOpen ? 'hidden' : 'visible',
+          },
+        })}
       >
         {header}
       </HStack>
-      <Sidebar isSidebarOpen={isSidebarOpen}>
+      <Sidebar
+        id={sidebarId}
+        isMobileMenuOpen={isMobileMenuOpen}
+        isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
+      >
         <Navigation />
       </Sidebar>
+      {setDesktopSidebarCollapsed && (
+        <HStack
+          alignItems="center"
+          gridColumn="1 / 2"
+          gridRow="3 / 4"
+          height="element.large"
+          isHidden={{ below: 'tablet' }}
+          // Leave room for the Next.js development indicator in the corner.
+          paddingStart={
+            process.env.NODE_ENV === 'development' ? tokenSchema.size.scale[800] : 'large'
+          }
+        >
+          <ActionButton
+            aria-label={isDesktopSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-controls={sidebarId}
+            aria-expanded={!isDesktopSidebarCollapsed}
+            onPress={() => setDesktopSidebarCollapsed(collapsed => !collapsed)}
+            prominence="low"
+          >
+            <Icon src={isDesktopSidebarCollapsed ? panelLeftOpenIcon : panelLeftCloseIcon} />
+          </ActionButton>
+        </HStack>
+      )}
       <Content>{children}</Content>
     </PageWrapper>
   )
